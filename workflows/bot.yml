@@ -1,0 +1,29 @@
+name: 🧬 Projeto Chimera - Bot Imortal
+
+on:
+  repository_dispatch:
+    types: [despertar_bot] # Este é o sinal enviado pelo Cloudflare
+
+jobs:
+  executar_ciclo:
+    runs-on: ubuntu-latest
+    # Impede que duas execuções rodem ao mesmo tempo
+    concurrency: bot_execucao
+    
+    steps:
+      - name: 📥 Baixar código
+        uses: actions/checkout@v4
+        
+      - name: 🔧 Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: 📦 Instalar dependências
+        run: npm install
+        
+      - name: 👻 EXECUTAR O FANTASMA 👻
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+        run: node bot.js
