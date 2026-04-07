@@ -1,0 +1,12 @@
+{
+  "groupId": 994985987,
+  "cookie": "",
+  "webhooks": {
+    "borderLogs": "https://discord.com/api/webhooks/1470521999334834411/GJHEDH8JVvwSUZ5HOxGaTib9ox0fGeC9MxgqhtvbAE0z_E5YeZcyvitex5cqlM6r53QU",
+    "hierarchyLogs": "https://discord.com/api/webhooks/1470522106130333728/CzFmxp2crk6FOffckflQdB-_zm_wnES-qKKG8CwyageRcUmxhjAhVwPdGhe8_qPPxaDH",
+    "raidLogs": "https://discord.com/api/webhooks/1470523899748946082/MbcGkMW0sHCsgVoXIW0xrHWf7mzIG8_L_5ekL_DVgOrPZWHSey_lhoWnVF7qzV4D2_YZ"
+  },
+  "whitelistRanks": [255, 253, 24, 22, 21, 20, 19, 18, 17, 16, 15],
+  "punishmentRankId": 4,
+  "thresholdRankJump": 2
+}
