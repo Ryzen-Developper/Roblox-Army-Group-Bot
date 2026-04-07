@@ -2,12 +2,11 @@ name: 🧬 Projeto Chimera - Bot Imortal
 
 on:
   repository_dispatch:
-    types: [despertar_bot] # Este é o sinal enviado pelo Cloudflare
+    types: [despertar_bot]
 
 jobs:
   executar_ciclo:
     runs-on: ubuntu-latest
-    # Impede que duas execuções rodem ao mesmo tempo
     concurrency: bot_execucao
     
     steps:
@@ -26,4 +25,6 @@ jobs:
         env:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
-        run: node bot.js
+          ROBLOX_COOKIE: ${{ secrets.ROBLOX_COOKIE }}
+          MAX_EXECUTION_SECONDS: 21000  # 5h50min
+        run: node index.js
