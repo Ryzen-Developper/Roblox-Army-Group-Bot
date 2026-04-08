@@ -1,4 +1,4 @@
-// index.js - Versão Imortal para GitHub Actions
+// index.js - Versão com Proxy Anti-Bloqueio
 require('dotenv').config();
 const noblox = require('noblox.js');
 const { Webhook, MessageBuilder } = require('discord-webhook-node');
@@ -14,13 +14,74 @@ const raidHook = new Webhook(config.webhooks.raidLogs);
 const octokit = new Octokit({ auth: process.env.GIST_TOKEN });
 const GIST_ID = process.env.GIST_ID;
 
-// Tempo máximo de execução: 5h50min (21000 segundos)
+// Tempo máximo de execução: 5h50min
 const MAX_EXECUTION_SECONDS = parseInt(process.env.MAX_EXECUTION_SECONDS) || 21000;
 const START_TIME = Date.now();
 
 // Estado persistente
 let lastLogDate = null;
 let roleMap = {};
+
+// ========== LISTA DE PROXIES GRATUITOS (Atualizada) ==========
+const PROXY_LIST = [
+    null, // Sem proxy (tentar direto primeiro)
+    { host: 'proxy.hide.me', port: 8080 },
+    { host: 'proxy.crawlera.com', port: 8010 }, // Pode não funcionar sem auth
+];
+
+// ========== FUNÇÃO PARA TENTAR LOGIN COM MÚLTIPLOS MÉTODOS ==========
+async function tentarLoginRoblox() {
+    const cookie = process.env.ROBLOX_COOKIE;
+    if (!cookie) throw new Error('ROBLOX_COOKIE não configurado');
+
+    // Método 1: Sem proxy (direto)
+    console.log('[LOGIN] Tentativa 1: Conexão direta...');
+    try {
+        const user = await noblox.setCookie(cookie);
+        console.log(`[LOGIN] ✅ Sucesso direto! Logado como: ${user.name}`);
+        return user;
+    } catch (erro) {
+        console.log(`[LOGIN] ❌ Falha direta: ${erro.message}`);
+    }
+
+    // Método 2: Com proxy HTTP
+    console.log('[LOGIN] Tentativa 2: Usando proxy gratuito...');
+    try {
+        // Configura proxy nas opções do noblox
+        const settings = {
+            cookie: cookie,
+            proxy: {
+                host: 'proxy.hide.me',
+                port: 8080,
+                protocol: 'http'
+            }
+        };
+        
+        const user = await noblox.setCookie(settings);
+        console.log(`[LOGIN] ✅ Sucesso com proxy! Logado como: ${user.name}`);
+        return user;
+    } catch (erro) {
+        console.log(`[LOGIN] ❌ Falha com proxy: ${erro.message}`);
+    }
+
+    // Método 3: User-Agent de navegador real
+    console.log('[LOGIN] Tentativa 3: User-Agent de navegador...');
+    try {
+        // Força User-Agent via headers
+        const axios = require('axios');
+        const user = await noblox.setCookie(cookie, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+        console.log(`[LOGIN] ✅ Sucesso com User-Agent! Logado como: ${user.name}`);
+        return user;
+    } catch (erro) {
+        console.log(`[LOGIN] ❌ Falha com User-Agent: ${erro.message}`);
+    }
+
+    throw new Error('Todas as tentativas de login falharam. Roblox está bloqueando o IP do GitHub Actions.');
+}
 
 // ========== FUNÇÕES DE ESTADO (GIST) ==========
 async function carregarEstado() {
@@ -29,7 +90,6 @@ async function carregarEstado() {
         const arquivo = gist.data.files['bot_state.json'];
         if (arquivo && arquivo.content) {
             const estado = JSON.parse(arquivo.content);
-            // Converte string ISO de volta para Date
             lastLogDate = estado.lastLogDate ? new Date(estado.lastLogDate) : null;
             roleMap = estado.roleMap || {};
             console.log(`[ESTADO] Carregado. Último log: ${lastLogDate?.toISOString() || 'nenhum'}`);
@@ -80,7 +140,6 @@ async function sendLog(hook, title, color, fields) {
 
 // ========== LÓGICA PRINCIPAL ==========
 async function checkLoop() {
-    // Verifica se está próximo do limite de execução do GitHub
     if (Date.now() - START_TIME > (MAX_EXECUTION_SECONDS * 1000) - 60000) {
         console.log('[TEMPO] Aproximando do limite. Salvando estado e encerrando...');
         await salvarEstado();
@@ -93,21 +152,18 @@ async function checkLoop() {
 
         const mostRecent = new Date(logs.data[0].created);
 
-        // Primeira execução (ou após reset) - apenas atualiza a referência sem processar logs antigos
         if (!lastLogDate) {
             lastLogDate = mostRecent;
-            console.log(`[SISTEMA] Monitoramento iniciado - Grupo ${config.groupId}. Data de referência: ${mostRecent.toISOString()}`);
+            console.log(`[SISTEMA] Monitoramento iniciado - Grupo ${config.groupId}`);
             await salvarEstado();
             return;
         }
 
-        // Se não há logs novos, não faz nada
         if (mostRecent <= lastLogDate) return;
 
-        // Filtra apenas logs novos (posteriores ao último processado)
         const newLogs = logs.data
             .filter(log => new Date(log.created) > lastLogDate)
-            .reverse(); // do mais antigo para o mais recente
+            .reverse();
 
         for (const entry of newLogs) {
             const actor = entry.actor;
@@ -126,30 +182,15 @@ async function checkLoop() {
                 const newRank = roleMap[newRoleId];
 
                 if (oldRank === undefined || newRank === undefined) {
-                    console.log(`[AVISO] Rank não mapeado: old=${oldRoleId}, new=${newRoleId}. Atualizando roleMap...`);
-                    // Recarrega os roles do grupo para garantir mapeamento correto
+                    console.log(`[AVISO] Rank não mapeado. Atualizando roleMap...`);
                     const roles = await noblox.getRoles(config.groupId);
                     roleMap = {};
-                    for (const role of roles) {
-                        roleMap[role.ID] = role.rank;
-                    }
-                    // Tenta novamente com o mapa atualizado
-                    const newOldRank = roleMap[oldRoleId];
-                    const newNewRank = roleMap[newRoleId];
-                    if (newOldRank === undefined || newNewRank === undefined) {
-                        console.log(`[ERRO] Ainda não foi possível mapear os ranks. Pulando log.`);
-                        continue;
-                    }
-                    // Atualiza as variáveis para uso abaixo
-                    var oldRankFixed = newOldRank;
-                    var newRankFixed = newNewRank;
-                } else {
-                    var oldRankFixed = oldRank;
-                    var newRankFixed = newRank;
+                    for (const role of roles) roleMap[role.ID] = role.rank;
+                    continue;
                 }
 
-                const pulo = Math.abs(newRankFixed - oldRankFixed);
-                const isPromocao = newRankFixed > oldRankFixed;
+                const pulo = Math.abs(newRank - oldRank);
+                const isPromocao = newRank > oldRank;
                 const status = isPromocao ? 'PROMOÇÃO' : 'REBAIXAMENTO';
                 const color = isPromocao ? '#00FF00' : '#FFFF00';
 
@@ -164,14 +205,13 @@ async function checkLoop() {
                     console.log(`[ANTI-ABUSO] Detectado por ${actor.user.username} - pulo ${pulo}`);
 
                     try {
-                        await noblox.setRank(config.groupId, targetId, oldRankFixed);
-
+                        await noblox.setRank(config.groupId, targetId, oldRank);
                         await noblox.setRank(config.groupId, actor.user.userId, config.punishmentRankId);
 
                         await sendLog(raidHook, 'INTERVENÇÃO: ANTI-ABUSO ATIVADO', '#FF0000', [
                             { name: 'Infrator', value: `${actor.user.username} (Punido → 3º SGT)`, inline: true },
                             { name: 'Vítima', value: `${targetName} (Restaurado)`, inline: true },
-                            { name: 'Motivo', value: `Pulo de ${pulo} patentes (máx permitido: ${config.thresholdRankJump})`, inline: false },
+                            { name: 'Motivo', value: `Pulo de ${pulo} patentes (máx: ${config.thresholdRankJump})`, inline: false },
                             { name: 'Horário', value: getTimestamp(), inline: false }
                         ]);
                     } catch (err) {
@@ -188,7 +228,6 @@ async function checkLoop() {
             }
         }
 
-        // Atualiza a data do último log processado
         lastLogDate = mostRecent;
         await salvarEstado();
     } catch (err) {
@@ -199,42 +238,32 @@ async function checkLoop() {
 // ========== INICIALIZAÇÃO ==========
 async function startApp() {
     try {
-        // Carrega estado anterior (se existir)
         await carregarEstado();
+        
+        // Tenta login com múltiplos métodos
+        await tentarLoginRoblox();
 
-        const cookie = process.env.ROBLOX_COOKIE || config.cookie;
-        if (!cookie) throw new Error('Cookie não encontrado! Configure a variável ROBLOX_COOKIE nos secrets do GitHub.');
-
-        const user = await noblox.setCookie(cookie);
-        console.log(`[LOGIN] Logado como: ${user.name} (ID: ${user.id})`);
-
-        // Se o roleMap não foi carregado do estado ou está incompleto, busca do zero
         if (Object.keys(roleMap).length === 0) {
             const roles = await noblox.getRoles(config.groupId);
             roleMap = {};
-            for (const role of roles) {
-                roleMap[role.ID] = role.rank;
-            }
-            console.log(`[OK] ${roles.length} patentes mapeadas com sucesso!`);
+            for (const role of roles) roleMap[role.ID] = role.rank;
+            console.log(`[OK] ${roles.length} patentes mapeadas!`);
             await salvarEstado();
         }
 
-        // Loop principal com verificação de tempo restante
         const intervalo = setInterval(async () => {
             await checkLoop();
         }, 5000);
 
-        // Se a execução chegar perto do limite, salva e sai
         const timer = setTimeout(async () => {
-            console.log('[TEMPO] Limite máximo atingido. Salvando e encerrando...');
+            console.log('[TEMPO] Limite máximo. Encerrando...');
             clearInterval(intervalo);
             await salvarEstado();
             process.exit(0);
-        }, (MAX_EXECUTION_SECONDS * 1000) - 30000); // 30 segundos de margem
+        }, (MAX_EXECUTION_SECONDS * 1000) - 30000);
 
-        // Caso o processo receba sinal de término (SIGTERM), salva estado
         process.on('SIGTERM', async () => {
-            console.log('[SINAL] Recebido SIGTERM. Salvando estado...');
+            console.log('[SINAL] Recebido SIGTERM. Salvando...');
             clearInterval(intervalo);
             clearTimeout(timer);
             await salvarEstado();
