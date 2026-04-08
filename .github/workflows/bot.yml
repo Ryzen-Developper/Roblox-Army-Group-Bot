@@ -1,6 +1,7 @@
 name: 🧬 Projeto Chimera - Bot Imortal
 
 on:
+  workflow_dispatch:  # ← ADICIONE ESTA LINHA (gatilho manual)
   repository_dispatch:
     types: [despertar_bot]
 
@@ -26,5 +27,5 @@ jobs:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
           ROBLOX_COOKIE: ${{ secrets.ROBLOX_COOKIE }}
-          MAX_EXECUTION_SECONDS: 21000  # 5h50min
+          MAX_EXECUTION_SECONDS: 21000
         run: node index.js
