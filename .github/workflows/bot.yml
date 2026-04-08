@@ -1,7 +1,7 @@
 name: 🧬 Projeto Chimera - Bot Imortal
 
 on:
-  workflow_dispatch:  # ← ADICIONE ESTA LINHA (gatilho manual)
+  workflow_dispatch:
   repository_dispatch:
     types: [despertar_bot]
 
@@ -19,13 +19,13 @@ jobs:
         with:
           node-version: '20'
           
+      - name: 📝 Criar arquivo .env
+        run: |
+          echo "ROBLOX_COOKIE=${{ secrets.ROBLOX_COOKIE }}" > .env
+          echo "✅ Arquivo .env criado!"
+          
       - name: 📦 Instalar dependências
         run: npm install
         
       - name: 👻 EXECUTAR O FANTASMA 👻
-        env:
-          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-          GIST_ID: ${{ secrets.GIST_ID }}
-          ROBLOX_COOKIE: ${{ secrets.ROBLOX_COOKIE }}
-          MAX_EXECUTION_SECONDS: 21000
         run: node index.js
