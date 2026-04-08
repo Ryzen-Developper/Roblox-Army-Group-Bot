@@ -118,7 +118,7 @@ async function checkLoop() {
 
 async function startApp() {
     try {
-        const cookie = process.env.ROBLOX_COOKIE || config.cookie;
+        const cookie = process.env.ROBLOX_COOKIE;
         if (!cookie) throw new Error('Cookie não encontrado! Coloque no .env ou config.json');
 
         const user = await noblox.setCookie(cookie);
