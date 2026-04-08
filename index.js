@@ -6,6 +6,34 @@ const config = require('./config.json');
 const borderHook = new Webhook(config.webhooks.borderLogs);
 const hierarchyHook = new Webhook(config.webhooks.hierarchyLogs);
 const raidHook = new Webhook(config.webhooks.raidLogs);
+const HttpsProxyAgent = require('https-proxy-agent');
+
+// Lista de proxies gratuitos (atualizada)
+const PROXIES = [
+    'http://20.111.54.16:80',
+    'http://20.206.106.192:80',
+    'http://20.210.113.32:80'
+];
+
+async function loginComProxy() {
+    const cookie = process.env.ROBLOX_COOKIE;
+    
+    for (const proxyUrl of PROXIES) {
+        try {
+            console.log(`[LOGIN] Tentando com proxy: ${proxyUrl}`);
+            
+            const agent = new HttpsProxyAgent(proxyUrl);
+            const user = await noblox.setCookie(cookie, { agent });
+            
+            console.log(`[LOGIN] ✅ SUCESSO com proxy! Usuário: ${user.name}`);
+            return user;
+        } catch (erro) {
+            console.log(`[LOGIN] ❌ Proxy ${proxyUrl} falhou: ${erro.message}`);
+        }
+    }
+    
+    throw new Error('Todos os proxies falharam');
+}
 
 let lastLogDate = null;
 let roleMap = {};
