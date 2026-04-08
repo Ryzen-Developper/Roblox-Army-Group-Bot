@@ -23,13 +23,42 @@ const START_TIME = Date.now();
 let lastLogDate = null;
 let roleMap = {};
 
-// ========== FUNÇÃO DE LOGIN COM PROXY ==========
+// ========== FUNÇÃO DE LOGIN COM LIMPEZA DE COOKIE ==========
 async function loginComProxy() {
-    const cookie = process.env.ROBLOX_COOKIE;
-    if (!cookie) throw new Error('ROBLOX_COOKIE não configurado');
-
-    console.log('[LOGIN] Tentando login com bypass de IP...');
-
+    // Pega o cookie BRUTO do secret
+    let cookie = process.env.ROBLOX_COOKIE;
+    
+    if (!cookie) {
+        throw new Error('❌ ROBLOX_COOKIE não configurado no GitHub Secrets!');
+    }
+    
+    // 🔥 LIMPEZA AGRESSIVA DO COOKIE 🔥
+    console.log('[LOGIN] Cookie bruto recebido, comprimento:', cookie.length);
+    console.log('[LOGIN] Primeiros 50 caracteres:', cookie.substring(0, 50));
+    console.log('[LOGIN] Últimos 20 caracteres:', cookie.substring(cookie.length - 20));
+    
+    // Remove TUDO que não é o cookie puro
+    cookie = cookie.trim();                    // Remove espaços no início/fim
+    cookie = cookie.replace(/[\n\r]/g, '');    // Remove quebras de linha
+    cookie = cookie.replace(/^["']|["']$/g, ''); // Remove aspas no início/fim
+    cookie = cookie.replace(/\s+/g, '');       // Remove QUALQUER espaço no meio
+    
+    // Verifica se o cookie tem o formato correto
+    if (!cookie.startsWith('_|WARNING')) {
+        console.error('[LOGIN] ⚠️ Cookie não começa com "_|WARNING"!');
+        console.error('[LOGIN] Início real:', cookie.substring(0, 30));
+        
+        // Tenta extrair o cookie se estiver em formato JSON ou aspas
+        const match = cookie.match(/_\|WARNING[^"'\s]+/);
+        if (match) {
+            cookie = match[0];
+            console.log('[LOGIN] ✅ Cookie extraído:', cookie.substring(0, 50) + '...');
+        }
+    }
+    
+    console.log('[LOGIN] Cookie após limpeza, comprimento:', cookie.length);
+    console.log('[LOGIN] Tentando login com cookie limpo...');
+    
     // Lista de User-Agents realistas
     const userAgents = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -42,7 +71,6 @@ async function loginComProxy() {
         try {
             console.log(`[LOGIN] Tentando com User-Agent: ${userAgent.substring(0, 50)}...`);
             
-            // Usa axios para fazer a requisição manualmente com User-Agent customizado
             const response = await axios({
                 method: 'GET',
                 url: 'https://www.roblox.com/mobileapi/userinfo',
@@ -50,23 +78,47 @@ async function loginComProxy() {
                     'Cookie': `.ROBLOSECURITY=${cookie}`,
                     'User-Agent': userAgent,
                     'Accept': 'application/json',
-                    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-                }
+                    'Accept-Language': 'pt-BR,pt;q=0.9'
+                },
+                timeout: 10000
             });
 
             if (response.data && response.data.UserName) {
-                console.log(`[LOGIN] ✅ Login bem-sucedido via User-Agent!`);
-                console.log(`[LOGIN] Usuário: ${response.data.UserName} (ID: ${response.data.UserID})`);
+                console.log(`[LOGIN] ✅ SUCESSO! Usuário: ${response.data.UserName}`);
+                console.log(`[LOGIN] Robux: ${response.data.RobuxBalance || 0}`);
                 
-                // Agora configura o noblox com o cookie validado
+                // Configura o noblox com o cookie validado
                 await noblox.setCookie(cookie);
                 return response.data;
             }
         } catch (erro) {
-            console.log(`[LOGIN] ❌ Falha com este User-Agent: ${erro.message}`);
+            console.log(`[LOGIN] ❌ Falha: ${erro.message}`);
+            if (erro.response) {
+                console.log(`[LOGIN] Status HTTP: ${erro.response.status}`);
+                console.log(`[LOGIN] Resposta: ${JSON.stringify(erro.response.data)}`);
+            }
         }
     }
 
+    // Método 2: Tentar direto com noblox
+    try {
+        console.log('[LOGIN] Última tentativa: método direto com noblox...');
+        const user = await noblox.setCookie(cookie);
+        console.log(`[LOGIN] ✅ Sucesso! Logado como: ${user.name}`);
+        return user;
+    } catch (erro) {
+        console.error('[LOGIN] ❌ Todas as tentativas falharam');
+        console.error('[LOGIN] Detalhes do erro:', erro.message);
+        
+        // Diagnóstico final
+        console.log('\n📊 DIAGNÓSTICO FINAL:');
+        console.log('- Cookie começa com "_|WARNING":', cookie.startsWith('_|WARNING'));
+        console.log('- Comprimento do cookie:', cookie.length, 'caracteres');
+        console.log('- Contém "DO-NOT-SHARE":', cookie.includes('DO-NOT-SHARE'));
+        
+        throw new Error(`Falha no login após ${userAgents.length + 1} tentativas. Roblox está bloqueando o IP.`);
+    }
+}
     // Método 2: Tentar direto com noblox (último recurso)
     try {
         console.log('[LOGIN] Tentando método direto...');
