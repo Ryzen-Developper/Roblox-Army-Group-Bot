@@ -7,7 +7,6 @@
     "discord-webhook-node": "^1.1.8",
     "dotenv": "^16.4.0",
     "@octokit/rest": "^20.0.2",
-    "https-proxy-agent": "^5.0.1",
-    "axios": "^1.6.0"
+    "https-proxy-agent": "^7.0.2"
   }
 }
