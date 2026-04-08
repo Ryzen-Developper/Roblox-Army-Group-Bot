@@ -1,4 +1,4 @@
-// index.js - Versão com Proxy Anti-Bloqueio
+// index.js - Versão Corrigida (Sem fallback para config.cookie)
 require('dotenv').config();
 const noblox = require('noblox.js');
 const { Webhook, MessageBuilder } = require('discord-webhook-node');
@@ -21,67 +21,6 @@ const START_TIME = Date.now();
 // Estado persistente
 let lastLogDate = null;
 let roleMap = {};
-
-// ========== LISTA DE PROXIES GRATUITOS (Atualizada) ==========
-const PROXY_LIST = [
-    null, // Sem proxy (tentar direto primeiro)
-    { host: 'proxy.hide.me', port: 8080 },
-    { host: 'proxy.crawlera.com', port: 8010 }, // Pode não funcionar sem auth
-];
-
-// ========== FUNÇÃO PARA TENTAR LOGIN COM MÚLTIPLOS MÉTODOS ==========
-async function tentarLoginRoblox() {
-    const cookie = process.env.ROBLOX_COOKIE;
-    if (!cookie) throw new Error('ROBLOX_COOKIE não configurado');
-
-    // Método 1: Sem proxy (direto)
-    console.log('[LOGIN] Tentativa 1: Conexão direta...');
-    try {
-        const user = await noblox.setCookie(cookie);
-        console.log(`[LOGIN] ✅ Sucesso direto! Logado como: ${user.name}`);
-        return user;
-    } catch (erro) {
-        console.log(`[LOGIN] ❌ Falha direta: ${erro.message}`);
-    }
-
-    // Método 2: Com proxy HTTP
-    console.log('[LOGIN] Tentativa 2: Usando proxy gratuito...');
-    try {
-        // Configura proxy nas opções do noblox
-        const settings = {
-            cookie: cookie,
-            proxy: {
-                host: 'proxy.hide.me',
-                port: 8080,
-                protocol: 'http'
-            }
-        };
-        
-        const user = await noblox.setCookie(settings);
-        console.log(`[LOGIN] ✅ Sucesso com proxy! Logado como: ${user.name}`);
-        return user;
-    } catch (erro) {
-        console.log(`[LOGIN] ❌ Falha com proxy: ${erro.message}`);
-    }
-
-    // Método 3: User-Agent de navegador real
-    console.log('[LOGIN] Tentativa 3: User-Agent de navegador...');
-    try {
-        // Força User-Agent via headers
-        const axios = require('axios');
-        const user = await noblox.setCookie(cookie, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
-        console.log(`[LOGIN] ✅ Sucesso com User-Agent! Logado como: ${user.name}`);
-        return user;
-    } catch (erro) {
-        console.log(`[LOGIN] ❌ Falha com User-Agent: ${erro.message}`);
-    }
-
-    throw new Error('Todas as tentativas de login falharam. Roblox está bloqueando o IP do GitHub Actions.');
-}
 
 // ========== FUNÇÕES DE ESTADO (GIST) ==========
 async function carregarEstado() {
@@ -240,8 +179,15 @@ async function startApp() {
     try {
         await carregarEstado();
         
-        // Tenta login com múltiplos métodos
-        await tentarLoginRoblox();
+        // 🔥 CORREÇÃO: Usa APENAS a variável de ambiente (sem fallback para config.cookie)
+        const cookie = process.env.ROBLOX_COOKIE;
+        if (!cookie) {
+            throw new Error('❌ ROBLOX_COOKIE não encontrado! Configure o secret no GitHub Actions.');
+        }
+        
+        console.log(`[LOGIN] Tentando conectar com cookie (${cookie.substring(0, 30)}...)`);
+        const user = await noblox.setCookie(cookie);
+        console.log(`[LOGIN] ✅ Logado como: ${user.name} (ID: ${user.id})`);
 
         if (Object.keys(roleMap).length === 0) {
             const roles = await noblox.getRoles(config.groupId);
@@ -271,7 +217,7 @@ async function startApp() {
         });
 
     } catch (err) {
-        console.error('Erro fatal na inicialização:', err.message);
+        console.error('❌ Erro fatal na inicialização:', err.message);
         process.exit(1);
     }
 }
