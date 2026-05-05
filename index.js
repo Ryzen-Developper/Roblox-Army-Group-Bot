@@ -10,6 +10,10 @@ const { Client, GatewayIntentBits, Collection, REST, Routes, ActivityType } = re
 const { joinVoiceChannel } = require('@discordjs/voice');
 const { loadSchedules } = require('./utils/scheduler');
 
+// ─── ADIÇÃO 1: Importar o Role Guard ─────────────────────────
+const roleGuard = require('./utils/roleGuard');
+// ─────────────────────────────────────────────────────────────
+
 // === Webhook para logs de comandos ===
 const commandHook = new Webhook(process.env.WEBHOOK_COMMANDS);
 
@@ -244,11 +248,9 @@ async function setupVoiceChannel() {
             return;
         }
 
-        // Renomeia o canal para BOT-ON
         await channel.setName('—͟͞͞⌠🟢⌡・⌠ BOT-ON ⌡');
         console.log('[VOZ] Canal renomeado para BOT-ON');
 
-        // Entra no canal de voz
         joinVoiceChannel({
             channelId: channel.id,
             guildId: channel.guild.id,
@@ -292,6 +294,12 @@ function hasPermission(member, userId) {
     const allowedRoles = ['1462284795374473260', '1462533718001320130', '1462284795919990998', '1462284795374473262'];
     return member.roles.cache.some(role => allowedRoles.includes(role.id));
 }
+
+// ─── ADIÇÃO 2: Evento guildMemberUpdate → Role Guard ─────────
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    await roleGuard.handle(oldMember, newMember, client);
+});
+// ─────────────────────────────────────────────────────────────
 
 client.on('interactionCreate', async interaction => {
     if (interaction.isAutocomplete()) {
