@@ -1,9 +1,12 @@
+const path = require('path');
 const { SlashCommandBuilder } = require('discord.js');
+
+// Caminho absoluto evita dependência circular no carregamento de módulos
 const {
     getDynamicExemptions,
     saveExemptions,
     DEFAULT_EXEMPT_ROLES,
-} = require('../../utils/roleGuard');
+} = require(path.join(__dirname, '../../utils/roleGuard'));
 
 module.exports = {
     data: new SlashCommandBuilder()
