@@ -10,10 +10,6 @@ const { Client, GatewayIntentBits, Collection, REST, Routes, ActivityType } = re
 const { joinVoiceChannel } = require('@discordjs/voice');
 const { loadSchedules } = require('./utils/scheduler');
 
-// ─── ADIÇÃO 1: Importar o Role Guard ─────────────────────────
-const roleGuard = require('./utils/roleGuard');
-// ─────────────────────────────────────────────────────────────
-
 // === Webhook para logs de comandos ===
 const commandHook = new Webhook(process.env.WEBHOOK_COMMANDS);
 
@@ -221,6 +217,13 @@ if (fs.existsSync(commandsPath)) {
     };
     loadCommandsFromDir(commandsPath);
 }
+
+// ─── Role Guard: importado APÓS carregamento de comandos ─────
+// Isso evita dependência circular (commands/admin/roleguard.js
+// também importa utils/roleGuard, e o Node resolveria em loop
+// se ambos fossem carregados ao mesmo tempo no boot).
+const roleGuard = require('./utils/roleGuard');
+// ─────────────────────────────────────────────────────────────
 
 // === STATUS ===
 const STATUS_TEXTS = ['EB DO KING', '👉 .gg/DCqd6Vs4R ⚠️'];
