@@ -311,7 +311,7 @@ client.on('interactionCreate', async interaction => {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
 
-    const publicCommands = ['help', 'info', 'guardar', 'abrirdoc', 'storagelist', 'fk', 'dv', 'ping', 'userinfo', 'say'];
+    const publicCommands = ['help', 'info', 'ping', 'userinfo'];
     const isPublic = publicCommands.includes(interaction.commandName);
     
     if (!isPublic) {
