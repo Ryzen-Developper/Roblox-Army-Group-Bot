@@ -36,6 +36,15 @@ const raidHook = new Webhook(config.webhooks.raidLogs);
 let lastLogDate = null;
 let roleMap = {};
 
+// ===============================================
+//   ESTADO GLOBAL - EVENTO DE PATENTE
+// ===============================================
+const eventoPatenteState = {
+    ativo:  false,
+    rankId: null,
+    nome:   null,
+};
+
 function getTimestamp() {
     const now = new Date();
     return now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -140,12 +149,38 @@ async function checkLoop() {
                 }
             }
 
-            if (action === 'Accept Join Request') {
-                await sendLog(borderHook, 'FRONTEIRA: ENTRADA APROVADA', '#0099FF', [
-                    { name: 'Aprovado por', value: actor.user.username, inline: true },
-                    { name: 'Novo Membro', value: desc.TargetName, inline: true }
-                ]);
+            // ── EVENTO DE PATENTE: detecta entrada via audit log ──────────────
+            // O audit log registra "Accept Join Request" quando alguém é aceito
+            // e também "Join" quando o grupo é aberto (entrada automática).
+            if (action === 'Accept Join Request' || action === 'Join') {
+                const targetId   = desc.TargetId;
+                const targetName = desc.TargetName;
+
+                // Log de fronteira (já existia para Accept Join Request)
+                if (action === 'Accept Join Request') {
+                    await sendLog(borderHook, 'FRONTEIRA: ENTRADA APROVADA', '#0099FF', [
+                        { name: 'Aprovado por', value: actor.user.username, inline: true },
+                        { name: 'Novo Membro', value: targetName, inline: true }
+                    ]);
+                }
+
+                // Se o evento de patente estiver ativo, aplica a patente ao novo membro
+                if (eventoPatenteState.ativo && eventoPatenteState.rankId) {
+                    try {
+                        await noblox.setRank(config.groupId, targetId, eventoPatenteState.rankId);
+                        console.log(`[EventoPatente] ${targetName} (${targetId}) → ${eventoPatenteState.nome} (rank ${eventoPatenteState.rankId})`);
+
+                        await sendLog(hierarchyHook, '🎖️ EVENTO DE PATENTE: AUTO-RANK', '#FFD700', [
+                            { name: 'Novo Membro',  value: `${targetName} (ID: ${targetId})`, inline: true },
+                            { name: 'Patente Dada', value: eventoPatenteState.nome,           inline: true },
+                            { name: 'Horário',      value: getTimestamp(),                     inline: false }
+                        ]);
+                    } catch (err) {
+                        console.error(`[EventoPatente] Falha ao rankear ${targetName}:`, err.message);
+                    }
+                }
             }
+            // ─────────────────────────────────────────────────────────────────
         }
 
         lastLogDate = mostRecent;
@@ -218,10 +253,7 @@ if (fs.existsSync(commandsPath)) {
     loadCommandsFromDir(commandsPath);
 }
 
-// ─── Role Guard: importado APÓS carregamento de comandos ─────
-// Isso evita dependência circular (commands/admin/roleguard.js
-// também importa utils/roleGuard, e o Node resolveria em loop
-// se ambos fossem carregados ao mesmo tempo no boot).
+// ─── Role Guard ───────────────────────────────────────────────
 const roleGuard = require('./utils/roleGuard');
 // ─────────────────────────────────────────────────────────────
 
@@ -298,11 +330,9 @@ function hasPermission(member, userId) {
     return member.roles.cache.some(role => allowedRoles.includes(role.id));
 }
 
-// ─── ADIÇÃO 2: Evento guildMemberUpdate → Role Guard ─────────
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
     await roleGuard.handle(oldMember, newMember, client);
 });
-// ─────────────────────────────────────────────────────────────
 
 client.on('interactionCreate', async interaction => {
     if (interaction.isAutocomplete()) {
@@ -332,7 +362,8 @@ client.on('interactionCreate', async interaction => {
     }
 
     try {
-        await command.execute(interaction, client, config);
+        // Passa eventoPatenteState para o comando (só eventopatente usa, outros ignoram)
+        await command.execute(interaction, client, config, eventoPatenteState);
         
         await sendCommandLog(
             `✅ Comando: /${interaction.commandName}`,
