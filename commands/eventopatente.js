@@ -1,8 +1,7 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
-const noblox = require('noblox.js');
-const config = require('../config.json');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
-// Lista completa de patentes do grupo (rankId => nome display)
+// Lista de patentes do grupo (rankId → nome display)
+// Baseada nos whitelistRanks do config.json: [255, 253, 24, 22, 21, 20, 19, 18, 17, 16, 15]
 const PATENTES = [
     { rankId: 255, nome: '[MAR] Marechal' },
     { rankId: 253, nome: '[GEN] General de Exército' },
@@ -20,12 +19,12 @@ const PATENTES = [
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('eventopatente')
-        .setDescription('Ativa/desativa o modo de evento onde todos que entrarem no grupo recebem uma patente')
+        .setDescription('Ativa/desativa o modo de evento: todos que entrarem no grupo recebem uma patente')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addStringOption(option =>
             option
                 .setName('patente')
-                .setDescription('Selecione a patente do evento')
+                .setDescription('Patente que todos os novos membros receberão automaticamente')
                 .setRequired(true)
                 .addChoices(
                     ...PATENTES.map(p => ({ name: p.nome, value: String(p.rankId) }))
@@ -34,31 +33,30 @@ module.exports = {
         .addStringOption(option =>
             option
                 .setName('status')
-                .setDescription('Ligar ou desligar o evento')
+                .setDescription('Ligar ou desligar o evento de patente')
                 .setRequired(true)
                 .addChoices(
-                    { name: '🟢 ON  – Ativar evento', value: 'on' },
+                    { name: '🟢 ON  – Ativar evento',    value: 'on'  },
                     { name: '🔴 OFF – Desativar evento', value: 'off' }
                 )
         ),
 
-    async execute(interaction, eventoPatenteState) {
-        await interaction.deferReply({ ephemeral: false });
+    // Assinatura igual aos outros comandos do bot: (interaction, client, config, eventoPatenteState)
+    async execute(interaction, client, config, eventoPatenteState) {
+        await interaction.deferReply();
 
-        const rankIdStr = interaction.options.getString('patente');
-        const status    = interaction.options.getString('status');
-        const rankId    = parseInt(rankIdStr);
-
+        const rankId  = parseInt(interaction.options.getString('patente'));
+        const status  = interaction.options.getString('status');
         const patente = PATENTES.find(p => p.rankId === rankId);
+
         if (!patente) {
             return interaction.editReply({ content: '❌ Patente inválida.' });
         }
 
         if (status === 'on') {
-            // Ativa o evento e salva a patente alvo no estado global
-            eventoPatenteState.ativo   = true;
-            eventoPatenteState.rankId  = rankId;
-            eventoPatenteState.nome    = patente.nome;
+            eventoPatenteState.ativo  = true;
+            eventoPatenteState.rankId = rankId;
+            eventoPatenteState.nome   = patente.nome;
 
             const embed = new EmbedBuilder()
                 .setTitle('🎖️ Evento de Patente — ATIVADO')
@@ -68,8 +66,8 @@ module.exports = {
                     { name: 'Rank ID',            value: `\`${rankId}\``,       inline: true },
                     { name: 'Status',             value: '🟢 **Ativo**',        inline: true },
                     {
-                        name: 'Funcionamento',
-                        value: 'Todos que entrarem no grupo agora receberão automaticamente a patente acima.',
+                        name: 'Como funciona',
+                        value: 'Todos que **entrarem no grupo** a partir de agora receberão automaticamente esta patente.',
                     }
                 )
                 .setFooter({ text: `Ativado por ${interaction.user.tag}` })
@@ -78,8 +76,8 @@ module.exports = {
             return interaction.editReply({ embeds: [embed] });
 
         } else {
-            // Desativa o evento
-            const nomeAnterior = eventoPatenteState.nome || 'N/A';
+            const nomeAnterior = eventoPatenteState.nome || 'Nenhuma';
+
             eventoPatenteState.ativo  = false;
             eventoPatenteState.rankId = null;
             eventoPatenteState.nome   = null;
@@ -91,8 +89,8 @@ module.exports = {
                     { name: 'Patente que estava ativa', value: `**${nomeAnterior}**`, inline: true },
                     { name: 'Status',                   value: '🔴 **Inativo**',       inline: true },
                     {
-                        name: 'Funcionamento',
-                        value: 'Novos membros do grupo não receberão mais patente automática.',
+                        name: 'Como funciona',
+                        value: 'Novos membros do grupo **não receberão mais** patente automática.',
                     }
                 )
                 .setFooter({ text: `Desativado por ${interaction.user.tag}` })
